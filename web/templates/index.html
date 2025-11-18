@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>Real MBTI</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="/static/css/styles.css" />
+</head>
+<body class="app-body">
+  <div class="page">
+
+    <!-- 상단 히어로 영역 -->
+    <header class="hero">
+      <div class="hero-left">
+        <div class="hero-badge-row">
+          <span class="hero-badge">REAL CHAT BASED</span>
+          <span class="hero-beta">BETA</span>
+        </div>
+        <h1 class="hero-title">Real MBTI</h1>
+        <p class="hero-subtitle">
+          카카오톡 대화 내보내기(.txt)를 여러 개 업로드하고,<br />
+          실제 대화 속 <strong>“내 메시지”</strong>만 기반으로
+          MBTI와 행동 패턴을 분석합니다.
+        </p>
+        <ol class="hero-steps">
+          <li><span>1</span> 내 카카오톡 이름 입력</li>
+          <li><span>2</span> 대화 txt 파일 여러 개 업로드</li>
+          <li><span>3</span> 분석 시작 버튼 클릭</li>
+          <li><span>4</span> 나만의 한 줄 요약 &amp; 패턴 확인</li>
+        </ol>
+      </div>
+
+      <div class="hero-right">
+        <div class="hero-widget">
+          <p class="hero-widget-title">분석 상태</p>
+          <p id="status" class="status-pill status-hidden"></p>
+          <p class="hero-widget-caption">
+            파일 수가 많을수록, 다양한 방을 섞을수록<br />
+            분석이 더 정확해집니다.
+          </p>
+        </div>
+      </div>
+    </header>
+
+    <!-- 메인 콘텐츠 -->
+    <main class="content">
+
+      <!-- 1. 입력 카드 -->
+      <section class="card card-input">
+        <div class="card-header-row">
+          <div class="card-header-left">
+            <h2 class="card-title">1. 분석 대상 설정</h2>
+            <p class="card-subtitle">
+              카카오톡 닉네임과 내보내기 파일을 기반으로 실제 대화 패턴을 분석합니다.
+            </p>
+          </div>
+        </div>
+
+        <div class="input-grid">
+          <div class="form-group">
+            <label for="userName">내 카카오톡 이름 (닉네임)</label>
+            <input
+              type="text"
+              id="userName"
+              placeholder="예: 김현호"
+            />
+            <p class="hint">
+              단톡방에서 보이는 내 이름과 <strong>완전히 똑같이</strong> 입력해야 합니다.
+            </p>
+          </div>
+
+          <div class="form-group">
+            <label for="fileInput">카카오톡 내보내기 파일 선택 (여러 개 가능)</label>
+            <div class="file-drop">
+              <input
+                type="file"
+                id="fileInput"
+                accept=".txt"
+                multiple
+              />
+              <p class="file-drop-text">
+                여기로 파일을 드래그하거나<br />
+                <span class="file-highlight">클릭해서 txt 파일 여러 개 선택</span>하세요.
+              </p>
+            </div>
+            <p class="hint">
+              카카오톡 &gt; 대화 내보내기 &gt; 텍스트(.txt)로 받은 파일들을 선택하세요.
+            </p>
+          </div>
+        </div>
+
+        <div class="input-footer">
+          <button id="analyzeBtn" class="btn-primary">
+            <span class="btn-dot"></span>
+            분석 시작
+          </button>
+          <p class="input-footnote">
+            대화 기간이 길고 방이 다양할수록, “진짜 나”에 가까운 결과가 나옵니다.
+          </p>
+        </div>
+      </section>
+
+      <!-- 2. 결과 카드 -->
+      <section class="card card-results">
+        <div class="card-header-row">
+          <div class="card-header-left">
+            <h2 class="card-title">2. 분석 결과</h2>
+            <p class="card-subtitle">
+              한 줄 요약, MBTI 축별 분석, 행동 패턴, 데이터 메타 정보, LLM 리포트를 모두 한 곳에서 확인할 수 있어요.
+            </p>
+          </div>
+        </div>
+
+        <!-- 상단 요약 -->
+        <section class="summary">
+          <div id="result-label" class="summary-label"></div>
+
+          <div class="summary-grid">
+            <div id="result-mbti" class="summary-mbti"></div>
+            <div id="result-confidence" class="summary-confidence"></div>
+          </div>
+        </section>
+
+        <!-- 아코디언(열었다/닫았다) 섹션 -->
+        <section class="accordion">
+
+        <!-- 1. 개요 -->
+          <article class="accordion-item is-open">
+            <button class="accordion-header" data-target="overview">
+              <div class="accordion-header-main">
+                <span class="accordion-index">1.</span>
+                <span class="accordion-title">개요</span>
+              </div>
+              <span class="accordion-icon" aria-hidden="true">⌃</span>
+            </button>
+            <div class="accordion-body" id="accordion-overview">
+              <div class="overview-grid">
+                <div class="overview-block">
+                  <h4 style="margin-bottom:4px;font-size:0.9rem;">MBTI 한눈에 보기</h4>
+                  <p>ESFP (외향 · 감각 · 감정 · 인식) 유형으로,</p>
+                  <p>게임/밈 대화에서 리액션과 농담으로 분위기를 띄우는 패턴이 자주 등장합니다.</p>
+                </div>
+                <div class="overview-block">
+                  <h4 style="margin-bottom:4px;font-size:0.9rem;">신뢰도 요약</h4>
+                  <p>중간 정도의 신뢰도이며, 단일 친구/게임방 비중이 높아서
+                    “일반적인 나”보다는 <strong>게임할 때의 나</strong>에 더 가깝게 분석되었을 수 있습니다.</p>
+                </div>
+              </div>
+            </div>
+          </article>
+
+          <!-- 2. 행동 패턴 -->
+          <article class="accordion-item">
+            <button class="accordion-header" data-target="behavior">
+              <div class="accordion-header-main">
+                <span class="accordion-index">2.</span>
+                <span class="accordion-title">행동 패턴</span>
+              </div>
+              <span class="accordion-icon" aria-hidden="true">⌃</span>
+            </button>
+            <div class="accordion-body" id="accordion-behavior">
+              <!-- 기존 result-behavior 에서 만드는 내용이 들어가는 자리라면 비워둬도 됨 -->
+              <div id="result-behavior" class="tab-section"></div>
+            </div>
+          </article>
+
+          <!-- 3. 데이터 정보 -->
+          <article class="accordion-item">
+            <button class="accordion-header" data-target="meta">
+              <div class="accordion-header-main">
+                <span class="accordion-index">3.</span>
+                <span class="accordion-title">데이터 정보</span>
+              </div>
+              <span class="accordion-icon" aria-hidden="true">⌃</span>
+            </button>
+            <div class="accordion-body" id="accordion-meta">
+              <div id="result-meta" class="tab-section"></div>
+            </div>
+          </article>
+
+          <!-- 4. AI 리포트 (제목 변경) -->
+          <article class="accordion-item">
+            <button class="accordion-header" data-target="report">
+              <div class="accordion-header-main">
+                <span class="accordion-index">4.</span>
+                <span class="accordion-title">AI 리포트</span>
+              </div>
+              <span class="accordion-icon" aria-hidden="true">⌃</span>
+            </button>
+            <div class="accordion-body" id="accordion-report">
+              <div id="result-report" class="tab-section"></div>
+            </div>
+          </article>
+
+        </section>
+
+
+  <script src="/static/js/main.js"></script>
+</body>
+</html>
