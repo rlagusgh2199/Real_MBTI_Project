@@ -1,181 +1,53 @@
-async function analyze() {
-  const userNameInput = document.getElementById("userName");
-  const fileInput = document.getElementById("fileInput");
-  const statusEl = document.getElementById("status");
+// ======================================================
+// 0. GLOBAL DOM & STATE
+// ======================================================
 
-  const resultLabel = document.getElementById("result-label");
-  const resultMbti = document.getElementById("result-mbti");
-  const resultBehavior = document.getElementById("result-behavior");
-  const resultConf = document.getElementById("result-confidence");
-  const resultMeta = document.getElementById("result-meta");
-  const resultReport = document.getElementById("result-report");
+const DOM = {
+  userNameInput: null,
+  fileInput: null,
+  statusEl: null,
 
-  const overviewMbti = document.getElementById("overview-mbti");
-  const overviewConf = document.getElementById("overview-confidence");
+  resultLabel: null,
+  resultMbti: null,
+  resultBehavior: null,
+  resultConf: null,
+  resultMeta: null,
+  resultReport: null,
 
-  const userName = userNameInput.value.trim();
-  const files = fileInput.files;
+  overviewMbti: null,
+  overviewConf: null,
 
-  // 초기화
-  if (resultLabel) resultLabel.innerHTML = "";
-  if (resultMbti) resultMbti.innerHTML = "";
-  if (resultBehavior) resultBehavior.innerHTML = "";
-  if (resultConf) resultConf.innerHTML = "";
-  if (resultMeta) resultMeta.innerHTML = "";
-  if (resultReport) resultReport.innerHTML = "";
-  if (overviewMbti) overviewMbti.innerHTML = "";
-  if (overviewConf) overviewConf.innerHTML = "";
+  analyzeBtn: null,
+};
 
-  if (!userName) {
-    setStatus(statusEl, "먼저 내 카카오톡 이름을 입력해주세요.", "error");
-    return;
+const STATE = {
+  fileDropEl: null,
+  fileDropTextEl: null,
+  defaultFileText: "",
+};
+
+
+// ======================================================
+// 1. API MODULE (서버 통신 전용)
+// ======================================================
+
+async function requestAnalyzeKakao(formData) {
+  const res = await fetch("/analyze/kakao", {
+    method: "POST",
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`서버 오류 (${res.status}): ${text}`);
   }
-
-  if (!files || files.length === 0) {
-    setStatus(statusEl, "최소 1개 이상의 카카오톡 내보내기 파일을 선택해주세요.", "error");
-    return;
-  }
-
-  setStatus(statusEl, "카카오톡 대화를 분석 중입니다...", "loading");
-
-  const formData = new FormData();
-  for (const file of files) {
-    formData.append("files", file);
-  }
-  formData.append("user_name", userName);
-
-  try {
-    const res = await fetch("/analyze/kakao", {
-      method: "POST",
-      body: formData,
-    });
-
-    if (!res.ok) {
-      const text = await res.text();
-      throw new Error(`서버 오류 (${res.status}): ${text}`);
-    }
-
-    const data = await res.json();
-
-    setStatus(statusEl, "분석이 완료되었습니다. 결과를 확인해보세요 🙌", "success");
-
-    // ========== 0. 한 줄 요약 라벨 ==========
-    if (data.label && resultLabel) {
-      let labelText = "";
-      let keyword = "";
-
-      if (typeof data.label === "string") {
-        labelText = data.label;
-      } else if (typeof data.label === "object") {
-        labelText = data.label.label || "";
-        keyword = data.label.keyword || "";
-      }
-
-      if (labelText) {
-        resultLabel.innerHTML = `
-          <p class="label-caption">나만의 한 줄 요약</p>
-          <p class="label-main">${escapeHtml(labelText)}</p>
-          ${
-            keyword
-              ? `<p class="label-sub"><span class="keyword-pill">키워드: ${escapeHtml(
-                  keyword
-                )}</span></p>`
-              : ""
-          }
-        `;
-      }
-    }
-
-    // ========== 1. MBTI 요약 ==========
-    let mbti = null;
-    if (data.mbti && resultMbti) {
-      mbti = data.mbti;
-      const scores = mbti.scores || {};
-
-      resultMbti.innerHTML = renderMbtiSummary(mbti.type, scores);
-
-      // 개요 섹션에도 간단 요약 복사
-      if (overviewMbti) {
-        overviewMbti.innerHTML = `
-          <h4>MBTI 유형</h4>
-          ${renderMbtiSummary(mbti.type, scores)}
-        `;
-      }
-
-      // 행동 패턴 & 근거 섹션
-      if (resultBehavior) {
-        renderBehaviorSection(resultBehavior, mbti);
-      }
-    }
-
-    // ========== 2. 신뢰도 섹션 ==========
-    if (data.confidence && resultConf) {
-      const c = data.confidence;
-      const dataAmount =
-        typeof c.data_amount_score === "number" ? c.data_amount_score : "-";
-      const srcDiversity =
-        typeof c.source_diversity_score === "number"
-          ? c.source_diversity_score
-          : "-";
-      const wordCount =
-        typeof c.word_count === "number" ? c.word_count : 0;
-
-      resultConf.innerHTML = renderConfidenceDetail(c, dataAmount, srcDiversity, wordCount);
-
-      // 개요 섹션 요약
-      if (overviewConf) {
-        overviewConf.innerHTML = `
-          <h4>신뢰도 요약</h4>
-          ${renderConfidenceCompact(c, wordCount)}
-        `;
-      }
-    }
-
-    // ========== 3. 메타 정보 ==========
-    if (data.meta && resultMeta) {
-      const m = data.meta;
-      const resolved = m.user_sender_resolved || "(감지 실패)";
-      resultMeta.innerHTML = `
-        <h3>분석 메타 정보</h3>
-        <ul class="meta-list">
-          <li><span>업로드한 파일 수</span><strong>${m.file_count}</strong></li>
-          <li><span>입력한 내 이름</span><strong>${escapeHtml(m.user_name_input || "")}</strong></li>
-          <li><span>실제로 분석에 사용된 이름(대화 내 발화자)</span><strong>${escapeHtml(
-            resolved
-          )}</strong></li>
-        </ul>
-        <p class="hint">
-          만약 "실제로 분석에 사용된 이름"이 내가 아닌 다른 사람으로 보인다면,
-          카톡 내보내기 파일에서 닉네임이 정확히 일치하는지 다시 확인해주세요.
-        </p>
-      `;
-    }
-
-    // ========== 4. AI 리포트 ==========
-    if (data.report && resultReport) {
-      const htmlReport = data.report
-        .replace(/\n/g, "<br />")
-        .replace(/ {2}/g, "&nbsp;&nbsp;");
-
-      resultReport.innerHTML = `
-        <h3>AI 리포트</h3>
-        <div class="report-box">${htmlReport}</div>
-      `;
-    }
-
-    // 분석 끝나면 "개요" 아코디언을 자동으로 펼치기
-    openAccordion("overview");
-  } catch (err) {
-    console.error(err);
-    setStatus(
-      statusEl,
-      `분석 중 오류가 발생했습니다: ${err.message}`,
-      "error"
-    );
-  }
+  return res.json();
 }
 
-/* ---------- 렌더링 유틸 ---------- */
+
+// ======================================================
+// 2. RENDER MODULE (UI 렌더링 전용)
+// ======================================================
 
 function renderMbtiSummary(type, scores) {
   const s = scores || {};
@@ -474,7 +346,7 @@ function renderBehaviorSection(container, mbti) {
       ${
         gameSamplesHtml
           ? `
-      <h5>게임/밈 관련 대화 예시</h5>
+      <h5>게임/맴 관련 대화 예시</h5>
       <ul class="sample-list">
         ${gameSamplesHtml}
       </ul>
@@ -488,7 +360,146 @@ function renderBehaviorSection(container, mbti) {
   `;
 }
 
-/* ---------- 공통 유틸 ---------- */
+function updateLabelSection(data) {
+  const el = DOM.resultLabel;
+  if (!el || !data.label) return;
+
+  let labelText = "";
+  let keyword = "";
+
+  if (typeof data.label === "string") {
+    labelText = data.label;
+  } else if (typeof data.label === "object") {
+    labelText = data.label.label || "";
+    keyword = data.label.keyword || "";
+  }
+
+  if (!labelText) return;
+
+  el.innerHTML = `
+    <p class="label-caption">나만의 한 줄 요약</p>
+    <p class="label-main">${escapeHtml(labelText)}</p>
+    ${
+      keyword
+        ? `<p class="label-sub"><span class="keyword-pill">키워드: ${escapeHtml(
+            keyword
+          )}</span></p>`
+        : ""
+    }
+  `;
+}
+
+function updateMbtiSection(data) {
+  if (!data.mbti) return;
+  const mbti = data.mbti;
+  const scores = mbti.scores || {};
+
+  if (DOM.resultMbti) {
+    DOM.resultMbti.innerHTML = renderMbtiSummary(mbti.type, scores);
+  }
+
+  if (DOM.overviewMbti) {
+    DOM.overviewMbti.innerHTML = `
+      <h4>MBTI 유형</h4>
+      ${renderMbtiSummary(mbti.type, scores)}
+    `;
+  }
+
+  if (DOM.resultBehavior) {
+    renderBehaviorSection(DOM.resultBehavior, mbti);
+  }
+}
+
+function updateConfidenceSection(data) {
+  if (!data.confidence) return;
+  const c = data.confidence;
+
+  const dataAmount =
+    typeof c.data_amount_score === "number" ? c.data_amount_score : "-";
+  const srcDiversity =
+    typeof c.source_diversity_score === "number"
+      ? c.source_diversity_score
+      : "-";
+  const wordCount =
+    typeof c.word_count === "number" ? c.word_count : 0;
+
+  if (DOM.resultConf) {
+    DOM.resultConf.innerHTML = renderConfidenceDetail(
+      c,
+      dataAmount,
+      srcDiversity,
+      wordCount
+    );
+  }
+
+  if (DOM.overviewConf) {
+    DOM.overviewConf.innerHTML = `
+      <h4>신뢰도 요약</h4>
+      ${renderConfidenceCompact(c, wordCount)}
+    `;
+  }
+}
+
+function updateMetaSection(data) {
+  if (!data.meta || !DOM.resultMeta) return;
+
+  const m = data.meta;
+  const resolved = m.user_sender_resolved || "(감지 실패)";
+
+  DOM.resultMeta.innerHTML = `
+    <h3>분석 메타 정보</h3>
+    <ul class="meta-list">
+      <li><span>업로드한 파일 수</span><strong>${m.file_count}</strong></li>
+      <li><span>입력한 내 이름</span><strong>${escapeHtml(
+        m.user_name_input || ""
+      )}</strong></li>
+      <li><span>실제로 분석에 사용된 이름(대화 내 발화자)</span><strong>${escapeHtml(
+        resolved
+      )}</strong></li>
+    </ul>
+    <p class="hint">
+      만약 "실제로 분석에 사용된 이름"이 내가 아닌 다른 사람으로 보인다면,
+      카톡 내보내기 파일에서 닉네임이 정확히 일치하는지 다시 확인해주세요.
+    </p>
+  `;
+}
+
+function updateReportSection(data) {
+  if (!data.report || !DOM.resultReport) return;
+
+  const htmlReport = data.report
+    .replace(/\n/g, "<br />")
+    .replace(/ {2}/g, "&nbsp;&nbsp;");
+
+  DOM.resultReport.innerHTML = `
+    <h3>AI 리포트</h3>
+    <div class="report-box">${htmlReport}</div>
+  `;
+}
+
+function resetResultUI() {
+  if (DOM.resultLabel) DOM.resultLabel.innerHTML = "";
+  if (DOM.resultMbti) DOM.resultMbti.innerHTML = "";
+  if (DOM.resultBehavior) DOM.resultBehavior.innerHTML = "";
+  if (DOM.resultConf) DOM.resultConf.innerHTML = "";
+  if (DOM.resultMeta) DOM.resultMeta.innerHTML = "";
+  if (DOM.resultReport) DOM.resultReport.innerHTML = "";
+  if (DOM.overviewMbti) DOM.overviewMbti.innerHTML = "";
+  if (DOM.overviewConf) DOM.overviewConf.innerHTML = "";
+}
+
+function updateUIWithAnalysis(data) {
+  updateLabelSection(data);
+  updateMbtiSection(data);
+  updateConfidenceSection(data);
+  updateMetaSection(data);
+  updateReportSection(data);
+}
+
+
+// ======================================================
+// 3. UTIL FUNCTIONS
+// ======================================================
 
 function escapeHtml(str) {
   if (typeof str !== "string") return "";
@@ -501,7 +512,6 @@ function escapeHtml(str) {
 function setStatus(el, text, mode) {
   if (!el) return;
 
-  // mode 없으면 그냥 숨기기
   if (!mode) {
     el.textContent = "";
     el.className = "status-pill status-hidden";
@@ -509,7 +519,6 @@ function setStatus(el, text, mode) {
   }
 
   el.textContent = text;
-  // 기본 클래스 리셋 + 숨김 제거
   el.className = "status-pill";
   el.classList.remove("status-hidden");
 
@@ -521,9 +530,6 @@ function setStatus(el, text, mode) {
     el.classList.add("status-success");
   }
 }
-
-
-/* ---------- 아코디언 유틸 ---------- */
 
 function openAccordion(sectionName) {
   const header = document.querySelector(
@@ -557,61 +563,151 @@ function toggleAccordion(header) {
   }
 }
 
-/* ---------- 초기화 ---------- */
 
-document.addEventListener("DOMContentLoaded", () => {
-  const btn = document.getElementById("analyzeBtn");
-  if (btn) {
-    btn.addEventListener("click", (e) => {
-      e.preventDefault();
-      analyze();
-    });
+// ======================================================
+// 4. BUSINESS LOGIC (검증, FormData, 분석 흐름)
+// ======================================================
+
+function validateInput() {
+  const userName = DOM.userNameInput
+    ? DOM.userNameInput.value.trim()
+    : "";
+  const files = DOM.fileInput ? DOM.fileInput.files : null;
+
+  if (!userName) {
+    return {
+      ok: false,
+      message: "먼저 내 카카오톡 이름을 입력해주세요.",
+    };
   }
 
-  // ★ 파일 선택 시 UI 업데이트
-  const fileInput = document.getElementById("fileInput");
-  const fileDrop = fileInput ? fileInput.closest(".file-drop") : null;
+  if (!files || files.length === 0) {
+    return {
+      ok: false,
+      message: "최소 1개 이상의 카카오톡 내보내기 파일을 선택해주세요.",
+    };
+  }
+
+  return { ok: true, message: "", userName, files };
+}
+
+function buildFormData(userName, files) {
+  const formData = new FormData();
+  for (const file of files) {
+    formData.append("files", file);
+  }
+  formData.append("user_name", userName);
+  return formData;
+}
+
+async function analyze() {
+  if (!DOM.statusEl) return;
+
+  resetResultUI();
+
+  const { ok, message, userName, files } = validateInput();
+  if (!ok) {
+    setStatus(DOM.statusEl, message, "error");
+    return;
+  }
+
+  setStatus(DOM.statusEl, "카카오톡 대화를 분석 중입니다...", "loading");
+
+  const formData = buildFormData(userName, files);
+
+  try {
+    const data = await requestAnalyzeKakao(formData);
+
+    setStatus(
+      DOM.statusEl,
+      "분석이 완료되었습니다. 결과를 확인해보세요 🙌",
+      "success"
+    );
+
+    updateUIWithAnalysis(data);
+    openAccordion("overview");
+  } catch (err) {
+    console.error(err);
+    setStatus(
+      DOM.statusEl,
+      `분석 중 오류가 발생했습니다: ${err.message}`,
+      "error"
+    );
+  }
+}
+
+
+// ======================================================
+// 5. INIT (DOM 캐싱, 이벤트 바인딩, 아코디언 초기화)
+// ======================================================
+
+function cacheDom() {
+  DOM.userNameInput = document.getElementById("userName");
+  DOM.fileInput = document.getElementById("fileInput");
+  DOM.statusEl = document.getElementById("status");
+
+  DOM.resultLabel = document.getElementById("result-label");
+  DOM.resultMbti = document.getElementById("result-mbti");
+  DOM.resultBehavior = document.getElementById("result-behavior");
+  DOM.resultConf = document.getElementById("result-confidence");
+  DOM.resultMeta = document.getElementById("result-meta");
+  DOM.resultReport = document.getElementById("result-report");
+
+  DOM.overviewMbti = document.getElementById("overview-mbti");
+  DOM.overviewConf = document.getElementById("overview-confidence");
+
+  DOM.analyzeBtn = document.getElementById("analyzeBtn");
+}
+
+function setupFileInputUI() {
+  if (!DOM.fileInput) return;
+
+  const fileDrop = DOM.fileInput.closest(".file-drop");
   const fileText = fileDrop ? fileDrop.querySelector(".file-drop-text") : null;
-  const defaultFileText = fileText ? fileText.innerHTML : "";
 
-  if (fileInput && fileDrop && fileText) {
-    fileInput.addEventListener("change", () => {
-      const files = fileInput.files;
+  STATE.fileDropEl = fileDrop;
+  STATE.fileDropTextEl = fileText;
+  STATE.defaultFileText = fileText ? fileText.innerHTML : "";
 
-      if (!files || files.length === 0) {
-        // 아무 파일도 없으면 원래 상태로
-        fileDrop.classList.remove("has-files");
-        fileText.innerHTML = defaultFileText;
-        return;
-      }
+  if (!fileDrop || !fileText) return;
 
-      fileDrop.classList.add("has-files");
+  DOM.fileInput.addEventListener("change", () => {
+    const files = DOM.fileInput.files;
 
-      if (files.length === 1) {
-        const name = files[0].name;
-        fileText.innerHTML = `
-          선택된 파일 1개<br />
-          <span class="file-highlight">${escapeHtml(name)}</span>
-        `;
-      } else {
-        const first = files[0].name;
-        const rest = files.length - 1;
-        fileText.innerHTML = `
-          선택된 파일 ${files.length}개<br />
-          <span class="file-highlight">${escapeHtml(first)} 외 ${rest}개</span>
-        `;
-      }
-    });
-  }
+    if (!files || files.length === 0) {
+      fileDrop.classList.remove("has-files");
+      fileText.innerHTML = STATE.defaultFileText;
+      return;
+    }
 
-  // 아코디언 이벤트 바인딩
+    fileDrop.classList.add("has-files");
+
+    if (files.length === 1) {
+      const name = files[0].name;
+      fileText.innerHTML = `
+        선택된 파일 1개<br />
+        <span class="file-highlight">${escapeHtml(name)}</span>
+      `;
+    } else {
+      const first = files[0].name;
+      const rest = files.length - 1;
+      fileText.innerHTML = `
+        선택된 파일 ${files.length}개<br />
+        <span class="file-highlight">${escapeHtml(first)} 외 ${rest}개</span>
+      `;
+    }
+  });
+}
+
+function setupAccordion() {
+  // 헤더 클릭 이벤트
   document.querySelectorAll(".accordion-header").forEach((header) => {
     header.addEventListener("click", () => {
       toggleAccordion(header);
     });
   });
 
-  // 기본으로 열려 있는(is-open) 아코디언 초기 max-height 세팅
+  // 기본으로 열려 있는(is-open) 아코디언의 max-height 세팅
   document.querySelectorAll(".accordion-item.is-open").forEach((item) => {
     const header = item.querySelector(".accordion-header");
     if (!header) return;
@@ -620,4 +716,26 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!body) return;
     body.style.maxHeight = body.scrollHeight + "px";
   });
+}
+
+function setupEventListeners() {
+  if (DOM.analyzeBtn) {
+    DOM.analyzeBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      analyze();
+    });
+  }
+
+  setupFileInputUI();
+  setupAccordion();
+}
+
+
+// ======================================================
+// 6. DOMContentLoaded 진입점
+// ======================================================
+
+document.addEventListener("DOMContentLoaded", () => {
+  cacheDom();
+  setupEventListeners();
 });
