@@ -2,21 +2,25 @@ from __future__ import annotations
 
 from typing import Dict, Any
 import os
+
+from dotenv import load_dotenv
 from openai import OpenAI
 
-# ==========================================
-# [설정] OpenAI API 키를 입력하세요
-# (보안을 위해 나중에는 환경변수로 빼는 것이 좋습니다)
-API_KEY = "OPENAI_API_KEY" 
-# ==========================================
+# ==============================
+# 환경 변수(.env) 로드 & 클라이언트 설정
+# ==============================
+load_dotenv()  # .env 파일 자동 로드
 
-client = OpenAI(api_key=API_KEY)
+API_KEY = os.getenv("OPENAI_API_KEY")
+GPT_MODEL_NAME = os.getenv("OPENAI_MODEL_NAME", "o3-mini")
 
-# GPT 모델 설정 (가성비: gpt-4o-mini / 고성능: gpt-4o)
-GPT_MODEL_NAME = "gpt-4o-mini"
+if API_KEY:
+    client = OpenAI(api_key=API_KEY)
+else:
+    client = None  # API 키 없을 때를 대비
+
 
 def _build_prompt(mbti_result: Dict[str, Any], confidence: Dict[str, Any]) -> str:
-    # === 기존 프롬프트 로직 그대로 유지 ===
     scores = mbti_result["scores"]
     features = mbti_result.get("features", {})
     explanation = mbti_result.get("explanation", {})
@@ -42,13 +46,13 @@ def _build_prompt(mbti_result: Dict[str, Any], confidence: Dict[str, Any]) -> st
         if k.startswith("topic_") and isinstance(v, (int, float)) and v > 0.01
     }
     sorted_topics = sorted(topic_ratios.items(), key=lambda item: item[1], reverse=True)
-    
+
     topic_summary = "\n".join(
         [f"- {topic.replace('_', ' ').title()}: {ratio:.2%}" for topic, ratio in sorted_topics]
     )
     if not topic_summary:
         topic_summary = "특별히 두드러지는 대화 주제가 없습니다."
-        
+
     persona = explanation.get("persona", "default")
     persona_map = {
         "developer": "개발자/분석가",
@@ -106,28 +110,54 @@ def _build_prompt(mbti_result: Dict[str, Any], confidence: Dict[str, Any]) -> st
 """
     return prompt
 
+
 def generate_report(mbti_result: Dict[str, Any], confidence: Dict[str, Any]) -> str:
+    header = "=== Real MBTI 리포트 (AI 분석) ===\n"
+
+    if client is None:
+        # API 키가 설정 안 된 경우 안전하게 처리
+        return (
+            header
+            + "AI 리포트를 생성하려면 OPENAI_API_KEY 환경변수가 필요합니다.\n"
+            + "서버의 .env 파일 또는 환경변수를 확인해주세요."
+        )
+
     prompt = _build_prompt(mbti_result, confidence)
 
     try:
-        response = client.chat.completions.create(
+        # o3-mini / o3 는 Responses API 사용 + temperature 등 미지원
+        response = client.responses.create(
             model=GPT_MODEL_NAME,
-            messages=[
+            reasoning={"effort": "medium"},  # 필요 없으면 제거해도 됨
+            input=[
                 {"role": "system", "content": "당신은 전문 심리 분석가이자 데이터 과학자입니다."},
-                {"role": "user", "content": prompt}
+                {"role": "user", "content": prompt},
             ],
-            temperature=0.7,
+            max_output_tokens=800,  # 리포트 길이 제한
         )
-        
-        llm_text = response.choices[0].message.content.strip()
-        
-        header = "=== Real MBTI 리포트 (AI 분석 완료) ===\n"
+
+        # 최신 SDK에서는 output_text 속성 제공
+        llm_text = ""
+        if hasattr(response, "output_text") and response.output_text:
+            llm_text = response.output_text.strip()
+        else:
+            # 혹시 모를 호환성 문제 대비한 fallback
+            try:
+                first_output = response.output[0]
+                first_content = first_output.content[0]
+                llm_text = getattr(getattr(first_content, "text", ""), "value", "").strip()
+            except Exception:
+                llm_text = "AI 응답 파싱 중 예상치 못한 형식이 감지되었습니다."
+
+        if not llm_text:
+            llm_text = "AI로부터 유효한 리포트를 받지 못했습니다."
+
         return header + llm_text
 
     except Exception as e:
         print(f"OpenAI API Error: {e}")
         return (
-            "=== Real MBTI 리포트 (분석 지연) ===\n"
-            "AI 서버와의 연결이 원활하지 않아 상세 리포트를 생성하지 못했습니다.\n\n"
-            f"에러 메시지: {str(e)}"
+            header
+            + "AI 서버와의 연결이 원활하지 않아 상세 리포트를 생성하지 못했습니다.\n\n"
+            + f"(디버그용 에러 메시지: {str(e)})"
         )

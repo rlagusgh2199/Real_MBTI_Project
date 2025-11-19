@@ -4,3 +4,4 @@ python-multipart
 requests
 jinja2
 openai
+python-dotenv>=1.0
