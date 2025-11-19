@@ -266,6 +266,10 @@ function renderBehaviorSection(container, mbti) {
   const explanations = mbti.explanation || {};
   const features = mbti.features || {};
 
+  const axisDetails = mbti.axis_details || {};
+  const ambiguousAxes = mbti.ambiguous_axes || [];
+  const persona = mbti.persona || null;
+
   // 축별 설명 리스트
   const exE = explanations.E || [];
   const exI = explanations.I || [];
@@ -318,6 +322,30 @@ function renderBehaviorSection(container, mbti) {
 
   container.innerHTML = `
     <h3>행동 패턴 & 근거</h3>
+
+    <div class="behavior-section">
+      <h4>0) MBTI 판정 요약</h4>
+      <ul class="meta-list">
+        ${
+          persona
+            ? `<li><span>주요 페르소나</span><strong>${escapeHtml(persona)}</strong></li>`
+            : ""
+        }
+        <li>
+          <span>애매한 축</span>
+          <strong>
+            ${
+              ambiguousAxes.length
+                ? ambiguousAxes.join(", ")
+                : "뚜렷하게 우세한 축이 많습니다."
+            }
+          </strong>
+        </li>
+      </ul>
+      <p class="hint">
+        애매한 축은 두 성향 점수 차이가 작아, 대화 데이터만으로는 한쪽을 강하게 단정하기 어려운 경우입니다.
+      </p>
+    </div>
 
     <div class="behavior-section">
       <h4>1) MBTI 축별 근거</h4>
