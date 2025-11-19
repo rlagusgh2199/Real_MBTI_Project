@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Dict, Any
 import os
 import re
+import random
 
 from dotenv import load_dotenv
 from openai import OpenAI
@@ -13,14 +14,19 @@ from openai import OpenAI
 load_dotenv()
 
 API_KEY = os.getenv("OPENAI_API_KEY")
-GPT_MODEL_NAME = os.getenv("OPENAI_MODEL_NAME", "o3-mini")
+GPT_MODEL_NAME = os.getenv("OPENAI_MODEL_NAME", "gpt-4o-mini")
 
 if API_KEY:
     client = OpenAI(api_key=API_KEY)
 else:
-    client = None  # API 키 없을 때 대비
+    client = None
+
+print("[keyword_engine] API_KEY set:", bool(API_KEY), "client is None:", client is None)
 
 
+# ==============================
+# Dominant Aspect 계산
+# ==============================
 def choose_dominant_aspect(features: Dict[str, Any]) -> str:
     topic_ratios = {
         k.replace("topic_", "").replace("_ratio", ""): v
@@ -60,7 +66,7 @@ def choose_dominant_aspect(features: Dict[str, Any]) -> str:
     avg_reply = features.get("avg_reply_minutes", None)
     try:
         avg_reply_val = float(avg_reply) if avg_reply is not None else None
-    except (TypeError, ValueError):
+    except:
         avg_reply_val = None
 
     if avg_reply_val is not None:
@@ -78,20 +84,21 @@ def choose_dominant_aspect(features: Dict[str, Any]) -> str:
     if not candidates:
         return "neutral"
 
-    best = max(candidates, key=lambda x: x[1])[0]
-    return best
+    return max(candidates, key=lambda x: x[1])[0]
 
 
+# ==============================
+# LLM 프롬프트 생성
+# ==============================
 def _build_label_prompt(mbti_result: Dict[str, Any], confidence: Dict[str, Any]) -> str:
-    scores = mbti_result["scores"]
+    scores = mbti_result.get("scores", {})
     features = mbti_result.get("features", {})
-    mbti_type = mbti_result["type"]
+    mbti_type = mbti_result.get("type", "XXXX")
     conf_score = confidence.get("score", 0)
-
     dominant = choose_dominant_aspect(features)
 
     prompt = f"""
-역할: 카카오톡 대화 기반 MBTI 분석 결과에 어울리는 '수식어+MBTI' 라벨 생성기
+역할: MBTI + 카카오톡 행동 패턴 기반의 창의적인 수식어 생성기.
 
 입력 정보:
 - MBTI: {mbti_type} (E:{scores.get("E")}, N:{scores.get("N")}, F:{scores.get("F")}, P:{scores.get("P")})
@@ -99,70 +106,107 @@ def _build_label_prompt(mbti_result: Dict[str, Any], confidence: Dict[str, Any])
 - 신뢰도: {conf_score}
 
 요청:
-- 위 사용자의 특징을 가장 잘 나타내는 '한 단어 수식어'를 창작해줘.
-- 출력 형식은 오직 "수식어 MBTI" (예: "야행성 ENFP", "칼답러 ISTJ")
-- 설명 금지, 따옴표 금지.
+- 사용자의 특징을 가장 잘 나타내는 '한 단어 수식어 + MBTI' 형태의 라벨을 **3개** 만들어라.
+- 반드시 아래 형식을 따라라:
+
+label1: (수식어) (MBTI)
+label2: (수식어) (MBTI)
+label3: (수식어) (MBTI)
+
+예:
+label1: 야행성 ENFP
+label2: 칼답러 ENFP
+label3: 감성파 ENFP
+
+규칙:
+- 반드시 한 단어 수식어 사용.
+- 한국어 수식어 사용.
+- 다른 설명 절대 금지.
+- 반드시 위 3줄 형식 그대로 출력.
 """
     return prompt
 
 
+# ==============================
+# 최종 라벨 + 키워드 생성
+# ==============================
 def generate_label_with_llm(
     mbti_result: Dict[str, Any],
     confidence: Dict[str, Any],
 ) -> Dict[str, str]:
+
     mbti_type = mbti_result.get("type", "XXXX")
     fallback_label = f"기본형 {mbti_type}"
     fallback_keyword = "기본형"
 
     if client is None:
-        # API 키 없으면 LLM 안 쓰고 기본값 리턴
         return {"label": fallback_label, "keyword": fallback_keyword}
 
     prompt = _build_label_prompt(mbti_result, confidence)
 
+    model_for_chat = GPT_MODEL_NAME
+    if model_for_chat.startswith("o3"):
+        print("[keyword_engine] model is o3*, fallback gpt-4o-mini")
+        model_for_chat = "gpt-4o-mini"
+
     try:
-        response = client.responses.create(
-            model=GPT_MODEL_NAME,
-            reasoning={"effort": "low"},
-            input=[
-                {"role": "system", "content": "당신은 창의적인 작명가입니다."},
+        completion = client.chat.completions.create(
+            model=model_for_chat,
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "반드시 label1, label2, label3 형태로만 출력하라. "
+                        "설명 금지. 다른 문장 금지. 형식 변경 금지."
+                    ),
+                },
                 {"role": "user", "content": prompt},
             ],
-            max_output_tokens=32,
+            max_tokens=128,
+            temperature=1.3,
+            top_p=0.9,
         )
 
-        raw_text = ""
-        if hasattr(response, "output_text") and response.output_text:
-            raw_text = response.output_text.strip()
-        else:
-            try:
-                first_output = response.output[0]
-                first_content = first_output.content[0]
-                raw_text = getattr(getattr(first_content, "text", ""), "value", "").strip()
-            except Exception:
-                raw_text = ""
+        raw_text = (completion.choices[0].message.content or "").strip()
 
-        if not raw_text:
+        # 라인별 파싱
+        lines = [l.strip() for l in raw_text.split("\n") if l.strip()]
+
+        labels = []
+        for line in lines:
+            if line.lower().startswith("label"):
+                parts = line.split(":", 1)
+                if len(parts) == 2:
+                    label = parts[1].strip()
+                    labels.append(label)
+
+        if not labels:
+            print("[keyword_engine] parsing failed, fallback")
             return {"label": fallback_label, "keyword": fallback_keyword}
 
-        # 정제 작업 (따옴표 제거 + 첫 줄만 사용)
-        cleaned = raw_text.replace('"', "").replace("'", "").split("\n")[0].strip()
+        # 🎯 후보 3개 중 랜덤 1개 선택
+        selected = random.choice(labels)
 
-        # MBTI 부분 분리 시도
-        if mbti_type in cleaned:
-            keyword_part = cleaned.replace(mbti_type, "").strip()
+        # 정제
+        cleaned = selected.replace('"', "").replace("'", "")
+        cleaned = re.sub(r"\s+", " ", cleaned).strip()
+
+        # keyword = MBTI 앞부분
+        mbti_pattern = re.compile(r"\b[EI][NS][TF][PJ]\b")
+        m = mbti_pattern.search(cleaned)
+        if m:
+            found_mbti = m.group(0)
+            keyword_part = cleaned.replace(found_mbti, "").strip()
+            final_label = f"{keyword_part} {mbti_type}"
         else:
             keyword_part = cleaned
-            cleaned = f"{keyword_part} {mbti_type}"
-
-        if not keyword_part:
-            keyword_part = fallback_keyword
+            final_label = f"{cleaned} {mbti_type}"
 
         return {
-            "label": cleaned,
+            "label": final_label,
             "keyword": keyword_part,
         }
 
     except Exception as e:
-        print(f"OpenAI Label Error: {e}")
+        print(f"[keyword_engine] ERROR: {e}")
         return {"label": fallback_label, "keyword": fallback_keyword}

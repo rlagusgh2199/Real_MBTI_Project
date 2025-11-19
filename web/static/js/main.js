@@ -88,44 +88,78 @@ function renderMbtiSummary(type, scores) {
   `;
 }
 
-function renderConfidenceCompact(c, wordCount) {
-  const score = c.score ?? 0;
-  const level = c.level || "unknown";
-  const levelLabel =
-    level === "high"
-      ? "높음"
-      : level === "medium"
-      ? "보통"
-      : level === "low"
-      ? "낮음"
-      : level;
+// 🔹 신뢰도 컴팩트 카드 (개요 + 상세 공용)
+function renderConfidenceCompact(confidence, wordCount, dataAmount, srcDiversity) {
+  if (!confidence) {
+    return `
+      <div class="conf-card">
+        <p class="conf-empty">신뢰도 정보를 계산할 수 없어요.</p>
+      </div>
+    `;
+  }
+
+  const score = confidence.score ?? 0;
+  const levelLabel = confidence.level_label || confidence.level || "";
+  const wordCountText = (wordCount ?? confidence.word_count ?? 0).toLocaleString();
+
+  // 🔸 세부 점수: 함수 인자로 넘어온 값이 있으면 그걸 우선 사용
+  const volumeScore =
+    dataAmount ??
+    confidence.volume_score ??
+    confidence.data_volume_score ??
+    confidence.data_amount_score ??
+    confidence.amount_score ??
+    "-";
+
+  const diversityScore =
+    srcDiversity ??
+    confidence.source_score ??
+    confidence.source_diversity_score ??
+    confidence.diversity_score ??
+    "-";
 
   return `
-    <div class="confidence-chip-row">
-      <div class="confidence-chip">
-        <span>신뢰도</span>
-        <strong>${score} / 100 (${levelLabel})</strong>
+    <div class="conf-card">
+      <div class="conf-header-row">
+        <!-- 🔥 여기 있던 "신뢰도" 텍스트는 제거 -->
+        <div class="conf-pill-row">
+          <span class="conf-pill-main">
+            신뢰도 ${score} / 100${levelLabel ? ` (${levelLabel})` : ""}
+          </span>
+          <span class="conf-pill-sub">단어 수 ${wordCountText}</span>
+        </div>
       </div>
-      <div class="confidence-chip">
-        <span>단어 수</span>
-        <strong>${wordCount}</strong>
+
+      <div class="conf-bar-wrap">
+        <div class="conf-bar-track">
+          <div class="conf-bar-fill" style="width: ${Math.max(
+            5,
+            Math.min(score, 100)
+          )}%;"></div>
+        </div>
       </div>
-    </div>
-    <div class="confidence-bar-wrapper">
-      <div class="confidence-bar">
-        <div class="confidence-bar-fill" style="width:${Math.min(
-          100,
-          score
-        )}%;"></div>
-      </div>
+
+      <dl class="conf-metrics">
+        <div class="conf-metric-row">
+          <dt class="conf-metric-label">데이터 양 점수</dt>
+          <dd class="conf-metric-value">${volumeScore}</dd>
+        </div>
+        <div class="conf-metric-row">
+          <dt class="conf-metric-label">소스 다양성 점수</dt>
+          <dd class="conf-metric-value">${diversityScore}</dd>
+        </div>
+      </dl>
     </div>
   `;
 }
 
+// 🔹 신뢰도 “상세” 카드 (아래 아코디언용)
 function renderConfidenceDetail(c, dataAmount, srcDiversity, wordCount) {
-  const compact = renderConfidenceCompact(c, wordCount);
+  // 위의 compact에도 dataAmount/srcDiversity를 같이 넘겨서
+  // 카드 안/아래 리스트 모두 같은 값이 보이게 함.
+  const compact = renderConfidenceCompact(c, wordCount, dataAmount, srcDiversity);
+
   return `
-    <h3>신뢰도(Confidence)</h3>
     ${compact}
     <ul class="meta-list">
       <li><span>데이터 양 점수</span><strong>${dataAmount}</strong></li>
@@ -134,231 +168,169 @@ function renderConfidenceDetail(c, dataAmount, srcDiversity, wordCount) {
   `;
 }
 
+
 function renderBehaviorSection(container, mbti) {
   const explanations = mbti.explanation || {};
   const features = mbti.features || {};
-
-  const axisDetails = mbti.axis_details || {};
   const ambiguousAxes = mbti.ambiguous_axes || [];
-  const persona = mbti.persona || null;
 
-  // 축별 설명 리스트
-  const exE = explanations.E || [];
-  const exI = explanations.I || [];
-  const exS = explanations.S || [];
-  const exN = explanations.N || [];
-  const exT = explanations.T || [];
-  const exF = explanations.F || [];
-  const exJ = explanations.J || [];
-  const exP = explanations.P || [];
+  // 축별 설명 배열 헬퍼
+  const axisHtml = (code, label, arr) => {
+    const items = arr || [];
+    if (!items.length) {
+      return `
+        <div class="behavior-axis-card">
+          <p class="behavior-axis-title">${code} <span>(${label})</span></p>
+          <p class="hint">뚜렷하게 설명할 근거가 많지 않습니다.</p>
+        </div>
+      `;
+    }
+    return `
+      <div class="behavior-axis-card">
+        <p class="behavior-axis-title">${code} <span>(${label})</span></p>
+        <ul>
+          ${items.map((t) => `<li>${escapeHtml(t)}</li>`).join("")}
+        </ul>
+      </div>
+    `;
+  };
 
-  // 시간대, 상위 단어/이모티콘, 샘플 메시지
+  // 시간대 한글 변환
   const mostActive = features.user_most_active_period || null;
+  const mostActiveKo =
+    mostActive === "morning"
+      ? "아침 (6~12시)"
+      : mostActive === "afternoon"
+      ? "낮/오후 (12~18시)"
+      : mostActive === "evening"
+      ? "저녁 (18~24시)"
+      : mostActive === "night"
+      ? "새벽/밤 (0~6시)"
+      : "특정 시간대가 두드러지지 않습니다.";
+
+  // 자주 쓰는 단어 / 이모티콘 칩
   const topWords = features.user_top_words || [];
   const topEmojis = features.user_top_emojis || [];
-  const nightSamples = features.sample_night_messages || [];
-  const gameSamples = features.sample_game_messages || [];
-
-  const mostActiveKo = (function () {
-    switch (mostActive) {
-      case "night":
-        return "새벽/밤 (0~6시)";
-      case "morning":
-        return "아침 (6~12시)";
-      case "afternoon":
-        return "낮/오후 (12~18시)";
-      case "evening":
-        return "저녁 (18~24시)";
-      default:
-        return null;
-    }
-  })();
 
   const topWordsHtml = topWords.length
-    ? topWords.map((w) => `<span class="chip">${escapeHtml(w)}</span>`).join(" ")
-    : '<span class="hint">자주 쓰는 단어가 뚜렷하게 나타나지 않았습니다.</span>';
+    ? topWords
+        .map((w) => `<span class="behavior-chip">${escapeHtml(w)}</span>`)
+        .join("")
+    : `<span class="hint">뚜렷하게 반복되는 단어가 없습니다.</span>`;
 
   const topEmojisHtml = topEmojis.length
     ? topEmojis
-        .map((e) => `<span class="chip chip-emoji">${escapeHtml(e)}</span>`)
-        .join(" ")
-    : '<span class="hint">자주 쓰는 이모티콘이 뚜렷하게 나타나지 않았습니다.</span>';
+        .map((e) => `<span class="behavior-chip">${escapeHtml(e)}</span>`)
+        .join("")
+    : `<span class="hint">자주 쓰는 이모티콘이 뚜렷하게 나타나지 않았습니다.</span>`;
 
-  const nightSamplesHtml = nightSamples.length
-    ? nightSamples.map((t) => `<li>${escapeHtml(t)}</li>`).join("")
-    : "";
+  // 실제 대화 예시 (이모티콘만 있는 줄은 최대한 제외)
+  const rawSamples = features.sample_common_messages || [];
+  const textSamples = rawSamples.filter((s) =>
+    /[\p{L}\p{N}]/u.test(s || "")
+  );
+  const samples = textSamples.length ? textSamples : rawSamples;
+  const samplesHtml = samples.length
+    ? `
+      <ul class="behavior-list">
+        ${samples.map((t) => `<li>${escapeHtml(t)}</li>`).join("")}
+      </ul>
+    `
+    : `<p class="hint">표시할 만한 예시 문장이 충분하지 않습니다.</p>`;
 
-  const gameSamplesHtml = gameSamples.length
-    ? gameSamples.map((t) => `<li>${escapeHtml(t)}</li>`).join("")
-    : "";
+  // 0) 애매한 축 요약
+  const ambiguousHtml =
+    ambiguousAxes.length > 0
+      ? `<span class="behavior-chip behavior-chip-strong">${ambiguousAxes.join(
+          ", "
+        )}</span>`
+      : `<span class="hint">이번 분석에서는 대부분의 축이 한쪽으로 뚜렷하게 기울어져 있습니다.</span>`;
 
   container.innerHTML = `
-    <h3>행동 패턴 & 근거</h3>
+    <div class="behavior-layout">
 
-    <div class="behavior-section">
-      <h4>0) MBTI 판정 요약</h4>
-      <ul class="meta-list">
-        ${
-          persona
-            ? `<li><span>주요 페르소나</span><strong>${escapeHtml(persona)}</strong></li>`
-            : ""
-        }
-        <li>
-          <span>애매한 축</span>
-          <strong>
-            ${
-              ambiguousAxes.length
-                ? ambiguousAxes.join(", ")
-                : "뚜렷하게 우세한 축이 많습니다."
-            }
-          </strong>
-        </li>
-      </ul>
-      <p class="hint">
-        애매한 축은 두 성향 점수 차이가 작아, 대화 데이터만으로는 한쪽을 강하게 단정하기 어려운 경우입니다.
-      </p>
+      <!-- 0) MBTI 판정 요약 -->
+      <section class="behavior-block">
+        <div class="behavior-block-header">
+          <div class="behavior-block-index">0</div>
+          <div>
+            <div class="behavior-block-title">MBTI 판정 요약</div>
+            <p class="behavior-block-desc">
+              애매한 축과 같이, 대화 데이터만으로는 한쪽을 강하게 단정하기 어려운 부분을 먼저 보여줍니다.
+            </p>
+          </div>
+        </div>
+        <p style="margin-top:6px; font-size:0.83rem;">
+          <strong>애매한 축</strong>
+        </p>
+        <div class="behavior-chip-row">
+          ${ambiguousHtml}
+        </div>
+      </section>
+
+      <!-- 1) MBTI 축별 근거 -->
+      <section class="behavior-block">
+        <div class="behavior-block-header">
+          <div class="behavior-block-index">1</div>
+          <div>
+            <div class="behavior-block-title">MBTI 축별 근거</div>
+            <p class="behavior-block-desc">
+              각 축(E/I, S/N, T/F, J/P)에 대해 카카오톡 대화에서 포착된 특징을 정리했습니다.
+            </p>
+          </div>
+        </div>
+
+        <div class="behavior-axis-grid">
+          ${axisHtml("E", "외향", explanations.E || [])}
+          ${axisHtml("I", "내향", explanations.I || [])}
+          ${axisHtml("S", "감각", explanations.S || [])}
+          ${axisHtml("N", "직관", explanations.N || [])}
+          ${axisHtml("T", "사고", explanations.T || [])}
+          ${axisHtml("F", "감정", explanations.F || [])}
+          ${axisHtml("J", "판단", explanations.J || [])}
+          ${axisHtml("P", "인식", explanations.P || [])}
+        </div>
+      </section>
+
+      <!-- 2) 대화 습관 요약 -->
+      <section class="behavior-block">
+        <div class="behavior-block-header">
+          <div class="behavior-block-index">2</div>
+          <div>
+            <div class="behavior-block-title">대화 습관 요약</div>
+          </div>
+        </div>
+
+        <p><strong>가장 많이 대화하는 시간대</strong><br />${mostActiveKo}</p>
+
+        <p style="margin-top:10px;"><strong>자주 쓰는 단어</strong></p>
+        <div class="behavior-chip-row">
+          ${topWordsHtml}
+        </div>
+
+        <p style="margin-top:10px;"><strong>자주 쓰는 이모티콘 / 반응</strong></p>
+        <div class="behavior-chip-row">
+          ${topEmojisHtml}
+        </div>
+      </section>
+
+      <!-- 3) 실제 대화 예시 -->
+      <section class="behavior-block">
+        <div class="behavior-block-header">
+          <div class="behavior-block-index">3</div>
+          <div>
+            <div class="behavior-block-title">실제 대화 예시</div>
+          </div>
+        </div>
+
+        ${samplesHtml}
+      </section>
+
     </div>
-
-    <div class="behavior-section">
-      <h4>1) MBTI 축별 근거</h4>
-      <div class="axis-grid">
-        <div>
-          <h5>E (외향)</h5>
-          ${
-            exE.length
-              ? `<ul>${exE
-                  .map((x) => `<li>${escapeHtml(x)}</li>`)
-                  .join("")}</ul>`
-              : "<p class='hint'>뚜렷한 외향 패턴 근거가 적습니다.</p>"
-          }
-        </div>
-        <div>
-          <h5>I (내향)</h5>
-          ${
-            exI.length
-              ? `<ul>${exI
-                  .map((x) => `<li>${escapeHtml(x)}</li>`)
-                  .join("")}</ul>`
-              : "<p class='hint'>뚜렷한 내향 패턴 근거가 적습니다.</p>"
-          }
-        </div>
-        <div>
-          <h5>S (감각)</h5>
-          ${
-            exS.length
-              ? `<ul>${exS
-                  .map((x) => `<li>${escapeHtml(x)}</li>`)
-                  .join("")}</ul>`
-              : "<p class='hint'>감각형으로 해석할 만한 근거가 많지 않습니다.</p>"
-          }
-        </div>
-        <div>
-          <h5>N (직관)</h5>
-          ${
-            exN.length
-              ? `<ul>${exN
-                  .map((x) => `<li>${escapeHtml(x)}</li>`)
-                  .join("")}</ul>`
-              : "<p class='hint'>직관형으로 해석할 만한 근거가 많지 않습니다.</p>"
-          }
-        </div>
-        <div>
-          <h5>T (사고)</h5>
-          ${
-            exT.length
-              ? `<ul>${exT
-                  .map((x) => `<li>${escapeHtml(x)}</li>`)
-                  .join("")}</ul>`
-              : "<p class='hint'>사고형으로 해석할 만한 근거가 많지 않습니다.</p>"
-          }
-        </div>
-        <div>
-          <h5>F (감정)</h5>
-          ${
-            exF.length
-              ? `<ul>${exF
-                  .map((x) => `<li>${escapeHtml(x)}</li>`)
-                  .join("")}</ul>`
-              : "<p class='hint'>감정형으로 해석할 만한 근거가 많지 않습니다.</p>"
-          }
-        </div>
-        <div>
-          <h5>J (판단)</h5>
-          ${
-            exJ.length
-              ? `<ul>${exJ
-                  .map((x) => `<li>${escapeHtml(x)}</li>`)
-                  .join("")}</ul>`
-              : "<p class='hint'>판단형으로 해석할 만한 근거가 많지 않습니다.</p>"
-          }
-        </div>
-        <div>
-          <h5>P (인식)</h5>
-          ${
-            exP.length
-              ? `<ul>${exP
-                  .map((x) => `<li>${escapeHtml(x)}</li>`)
-                  .join("")}</ul>`
-              : "<p class='hint'>인식형으로 해석할 만한 근거가 많지 않습니다.</p>"
-          }
-        </div>
-      </div>
-    </div>
-
-    <div class="behavior-section">
-      <h4>2) 대화 습관 요약</h4>
-      <ul>
-        ${
-          mostActiveKo
-            ? `<li>가장 많이 대화하는 시간대: <strong>${mostActiveKo}</strong></li>`
-            : `<li>가장 활발한 시간대 정보를 뽑을 수 없었습니다.</li>`
-        }
-      </ul>
-
-      <h5>자주 쓰는 단어</h5>
-      <div class="chip-row">
-        ${topWordsHtml}
-      </div>
-
-      <h5>자주 쓰는 이모티콘/반응</h5>
-      <div class="chip-row">
-        ${topEmojisHtml}
-      </div>
-    </div>
-
-    ${
-      nightSamplesHtml || gameSamplesHtml
-        ? `
-    <div class="behavior-section">
-      <h4>3) 실제 대화 예시</h4>
-
-      ${
-        nightSamplesHtml
-          ? `
-      <h5>야간 대화 예시</h5>
-      <ul class="sample-list">
-        ${nightSamplesHtml}
-      </ul>
-      `
-          : ""
-      }
-
-      ${
-        gameSamplesHtml
-          ? `
-      <h5>게임/맴 관련 대화 예시</h5>
-      <ul class="sample-list">
-        ${gameSamplesHtml}
-      </ul>
-      `
-          : ""
-      }
-    </div>
-    `
-        : ""
-    }
   `;
 }
+
+
 
 function updateLabelSection(data) {
   const el = DOM.resultLabel;
@@ -399,11 +371,10 @@ function updateMbtiSection(data) {
   }
 
   if (DOM.overviewMbti) {
-    DOM.overviewMbti.innerHTML = `
-      <h4>MBTI 유형</h4>
-      ${renderMbtiSummary(mbti.type, scores)}
-    `;
+    // 바깥 제목/박스 없이 MBTI 카드만 넣기
+    DOM.overviewMbti.innerHTML = renderMbtiSummary(mbti.type, scores);
   }
+
 
   if (DOM.resultBehavior) {
     renderBehaviorSection(DOM.resultBehavior, mbti);
@@ -433,11 +404,15 @@ function updateConfidenceSection(data) {
   }
 
   if (DOM.overviewConf) {
-    DOM.overviewConf.innerHTML = `
-      <h4>신뢰도 요약</h4>
-      ${renderConfidenceCompact(c, wordCount)}
-    `;
+    // 개요에서도 데이터 양/소스 다양성 점수를 같이 전달
+    DOM.overviewConf.innerHTML = renderConfidenceCompact(
+      c,
+      wordCount,
+      dataAmount,
+      srcDiversity
+    );
   }
+
 }
 
 function updateMetaSection(data) {
@@ -467,15 +442,57 @@ function updateMetaSection(data) {
 function updateReportSection(data) {
   if (!data.report || !DOM.resultReport) return;
 
-  const htmlReport = data.report
-    .replace(/\n/g, "<br />")
-    .replace(/ {2}/g, "&nbsp;&nbsp;");
+  const raw = data.report;
+
+  // AI 리포트의 섹션 구분을 감지하여 자동 분리
+  const lines = raw.split("\n").map((t) => t.trim());
+
+  let html = "";
+  let currentSection = "";
+
+  const pushTitle = (title) => {
+    html += `<div class="report-subtitle">${escapeHtml(title)}</div>`;
+  };
+
+  lines.forEach((line) => {
+    if (!line) return;
+
+    // === 섹션 제목 ===
+    if (/^\d+\./.test(line)) {
+      pushTitle(line);
+      return;
+    }
+
+    // 글 머리 기호
+    if (line.startsWith("•")) {
+      html += `<ul class="report-bullet"><li>${escapeHtml(
+        line.replace("•", "").trim()
+      )}</li></ul>`;
+      return;
+    }
+
+    // 일반 문단
+    html += `<p>${escapeHtml(line)}</p>`;
+  });
 
   DOM.resultReport.innerHTML = `
-    <h3>AI 리포트</h3>
-    <div class="report-box">${htmlReport}</div>
+    <div class="report-block">
+      <div class="report-title">📘 AI 리포트</div>
+      ${html}
+    </div>
   `;
+
+  // 아코디언 리사이즈 적용
+  const body = document.getElementById("accordion-report");
+  if (body) {
+    const item = body.closest(".accordion-item");
+    if (item && item.classList.contains("is-open")) {
+      body.style.maxHeight = body.scrollHeight + "px";
+    }
+  }
 }
+
+
 
 function resetResultUI() {
   if (DOM.resultLabel) DOM.resultLabel.innerHTML = "";
@@ -486,6 +503,8 @@ function resetResultUI() {
   if (DOM.resultReport) DOM.resultReport.innerHTML = "";
   if (DOM.overviewMbti) DOM.overviewMbti.innerHTML = "";
   if (DOM.overviewConf) DOM.overviewConf.innerHTML = "";
+  if (DOM.overviewPersona) DOM.overviewPersona.innerHTML = "";
+
 }
 
 function updateUIWithAnalysis(data) {
@@ -494,6 +513,7 @@ function updateUIWithAnalysis(data) {
   updateConfidenceSection(data);
   updateMetaSection(data);
   updateReportSection(data);
+  updatePersonaOverview(data);
 }
 
 
@@ -665,6 +685,8 @@ function cacheDom() {
 
   DOM.overviewMbti = document.getElementById("overview-mbti");
   DOM.overviewConf = document.getElementById("overview-confidence");
+  DOM.overviewPersona = document.getElementById("overview-persona");
+
 
   DOM.analyzeBtn = document.getElementById("analyzeBtn");
 }
@@ -739,6 +761,33 @@ function setupEventListeners() {
   setupFileInputUI();
   setupAccordion();
 }
+
+function updatePersonaOverview(data) {
+  if (!DOM.overviewPersona) return;
+  const mbti = data.mbti;
+  if (!mbti || !mbti.persona_overview) return;
+
+  const text = mbti.persona_overview;
+
+  // 줄바꿈 기준 문단 처리
+  const paragraphs = text
+    .split("\n")
+    .map((p) => p.trim())
+    .filter((p) => p.length)
+    .map((p) => `<p>${escapeHtml(p)}</p>`)
+    .join("");
+
+  DOM.overviewPersona.innerHTML = `
+    <div class="persona-card">
+      <div class="persona-label">MBTI PERSONA</div>
+      <div class="persona-mbti">${mbti.type} 요약</div>
+      <div class="persona-body">
+        ${paragraphs}
+      </div>
+    </div>
+  `;
+}
+
 
 
 // ======================================================

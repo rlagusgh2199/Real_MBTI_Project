@@ -146,7 +146,17 @@
       <section id="results-section" class="card card-results" hidden>
         <header class="card-header">
           <h2 class="card-title">2. 분석 결과</h2>
+          <p class="card-subtitle">
+            한 줄 요약, MBTI 축별 분석, 행동 패턴, 데이터 메타 정보, LLM 리포트를 한 곳에서 확인할 수 있어요.
+          </p>
         </header>
+
+        <!-- 상단 한 줄 요약 히어로 -->
+        <section class="label-hero">
+          <div class="label-block label-block-hero" id="result-label">
+            <!-- JS에서 한 줄 요약 라벨 렌더링 -->
+          </div>
+        </section>
 
         <!-- 아코디언 전체 래퍼 -->
         <div class="accordion">
@@ -158,10 +168,11 @@
                 <span class="accordion-index">1</span>
                 <span class="accordion-title">개요</span>
               </span>
-              <span class="accordion-header-sub">MBTI · 신뢰도 · 한 줄 요약</span>
+              <span class="accordion-header-sub">MBTI · 신뢰도 요약</span>
               <span class="accordion-icon">⌄</span>
             </button>
             <div class="accordion-body" id="accordion-overview">
+              <div id="overview-persona" class="overview-persona"></div>
               <div class="overview-grid">
                 <div class="overview-block" id="overview-mbti">
                   <!-- JS에서 MBTI 간단 요약 렌더링 -->
@@ -169,9 +180,6 @@
                 <div class="overview-block" id="overview-confidence">
                   <!-- JS에서 신뢰도 요약 렌더링 -->
                 </div>
-              </div>
-              <div class="label-block" id="result-label">
-                <!-- JS에서 한 줄 요약 라벨 렌더링 -->
               </div>
             </div>
           </article>
@@ -181,36 +189,16 @@
             <button class="accordion-header" data-target="behavior">
               <span class="accordion-header-main">
                 <span class="accordion-index">2</span>
-                <span class="accordion-title">행동 패턴 & 근거</span>
+                <span class="accordion-title">행동 패턴</span>
               </span>
               <span class="accordion-header-sub">MBTI 축별 근거 · 대화 습관 · 예시</span>
               <span class="accordion-icon">⌄</span>
             </button>
             <div class="accordion-body" id="accordion-behavior">
               <div class="result-section">
-                <div id="result-mbti" class="mbti-visual">
-                  <!-- JS에서 MBTI 축 그래프 렌더링 -->
-                </div>
                 <div id="result-behavior">
                   <!-- JS에서 행동 패턴 상세 렌더링 -->
                 </div>
-              </div>
-            </div>
-          </article>
-
-          <!-- 3) 신뢰도 상세 -->
-          <article class="accordion-item">
-            <button class="accordion-header" data-target="confidence">
-              <span class="accordion-header-main">
-                <span class="accordion-index">3</span>
-                <span class="accordion-title">신뢰도 상세</span>
-              </span>
-              <span class="accordion-header-sub">데이터 양 · 소스 다양성 · 점수</span>
-              <span class="accordion-icon">⌄</span>
-            </button>
-            <div class="accordion-body" id="accordion-confidence">
-              <div id="result-confidence">
-                <!-- JS에서 신뢰도 상세 렌더링 -->
               </div>
             </div>
           </article>
@@ -219,7 +207,7 @@
           <article class="accordion-item">
             <button class="accordion-header" data-target="meta">
               <span class="accordion-header-main">
-                <span class="accordion-index">4</span>
+                <span class="accordion-index">3</span>
                 <span class="accordion-title">분석 메타 정보</span>
               </span>
               <span class="accordion-header-sub">파일 수 · 닉네임 매칭 결과</span>
@@ -236,10 +224,10 @@
           <article class="accordion-item">
             <button class="accordion-header" data-target="report">
               <span class="accordion-header-main">
-                <span class="accordion-index">5</span>
+                <span class="accordion-index">4</span>
                 <span class="accordion-title">AI 리포트</span>
               </span>
-              <span class="accordion-header-sub">LLM 기반 서술형 분석 결과</span>
+              <span class="accordion-header-sub">서술형 분석 결과</span>
               <span class="accordion-icon">⌄</span>
             </button>
             <div class="accordion-body" id="accordion-report">
@@ -254,7 +242,7 @@
 
     <footer class="app-footer">
       <p>Real MBTI · KakaoTalk conversation based MBTI & behavior analysis</p>
-      <p class="app-footer-sub">Built with FastAPI · Local/Cloud LLM · Frontend vanilla JS</p>
+      <p class="app-footer-sub">Built with FastAPI · Chat GPT API · Frontend vanilla JS</p>
     </footer>
   </div>
 

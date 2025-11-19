@@ -133,7 +133,7 @@ def generate_report(mbti_result: Dict[str, Any], confidence: Dict[str, Any]) -> 
                 {"role": "system", "content": "당신은 전문 심리 분석가이자 데이터 과학자입니다."},
                 {"role": "user", "content": prompt},
             ],
-            max_output_tokens=800,  # 리포트 길이 제한
+            max_output_tokens=2000,  # 리포트 길이 제한
         )
 
         # 최신 SDK에서는 output_text 속성 제공
@@ -161,3 +161,86 @@ def generate_report(mbti_result: Dict[str, Any], confidence: Dict[str, Any]) -> 
             + "AI 서버와의 연결이 원활하지 않아 상세 리포트를 생성하지 못했습니다.\n\n"
             + f"(디버그용 에러 메시지: {str(e)})"
         )
+    
+def _build_persona_prompt(mbti_result: Dict[str, Any]) -> str:
+    """
+    MBTI 결과(dict)를 받아, 사용자 소개용 페르소나 개요 프롬프트를 만든다.
+    """
+    mbti_type = mbti_result.get("type", "????")
+    explanation = mbti_result.get("explanation", {}) or {}
+
+    # 축별 설명 중 앞부분 1~2개만 간단히 모아서 힌트로 넘긴다.
+    axis_summaries = []
+    for axis in ["E", "I", "S", "N", "T", "F", "J", "P"]:
+        lines = explanation.get(axis) or []
+        if not lines:
+            continue
+        axis_summaries.append(f"{axis}: " + " / ".join(lines[:2]))
+
+    axis_text = (
+        "\n".join(axis_summaries)
+        if axis_summaries
+        else "축별 설명은 따로 제공되지 않았습니다."
+    )
+
+    prompt = f"""
+너는 'Real MBTI' 서비스에서 사용자를 소개하는 카피를 작성하는 작성자야.
+
+[MBTI 유형]
+- {mbti_type}
+
+[행동 특징 요약]
+{axis_text}
+
+위 정보를 바탕으로, 이 사용자를 소개하는 짧은 페르소나 개요를 작성해줘.
+
+조건:
+- 한국어로 작성
+- 3~5문장 정도의 하나의 단락
+- "~한 편입니다.", "~하는 스타일입니다." 처럼 부드럽고 자연스러운 말투
+- MBTI 이론 강의처럼 딱딱하게 설명하지 말고, 실제 사람을 소개하듯 써줘
+- 첫 문장 또는 두 번째 문장 안에 "{mbti_type}" 라는 타입 이름을 한 번 언급해줘
+"""
+    return prompt
+
+def generate_persona_overview(mbti_result: Dict[str, Any]) -> str:
+    """
+    MBTI 결과를 기반으로 한 페르소나 개요 문단을 생성한다.
+    - OPENAI_API_KEY가 없거나 오류가 나면 빈 문자열("")을 반환한다.
+    """
+    if client is None:
+        # API 키 없으면 조용히 빈 문자열 리턴 (프론트에서 옵션으로 처리)
+        return ""
+
+    prompt = _build_persona_prompt(mbti_result)
+
+    try:
+        response = client.responses.create(
+            model=GPT_MODEL_NAME,
+            reasoning={"effort": "medium"},
+            input=[
+                {
+                    "role": "system",
+                    "content": "너는 한국어로 친근하고 간결하게 성격을 설명해 주는 도우미야.",
+                },
+                {"role": "user", "content": prompt},
+            ],
+            max_output_tokens=2000,
+        )
+
+        text = ""
+        if hasattr(response, "output_text") and response.output_text:
+            text = response.output_text.strip()
+        else:
+            # generate_report 와 동일한 fallback 로직 재사용
+            try:
+                first_output = response.output[0]
+                first_content = first_output.content[0]
+                text = getattr(getattr(first_content, "text", ""), "value", "").strip()
+            except Exception:
+                text = ""
+
+        return text
+    except Exception as e:
+        print(f"OpenAI API Error (persona): {e}")
+        return ""

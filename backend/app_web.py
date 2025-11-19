@@ -13,8 +13,9 @@ from .feature_extractor.features_common import extract_text_features
 from .feature_extractor.features_kakao import extract_kakao_features
 from .mbti_scorer import score_mbti
 from .confidence_engine import compute_confidence
-from .llm_reporter import generate_report
+from .llm_reporter import generate_report, generate_persona_overview
 from .keyword_engine import generate_label_with_llm  # ★ 추가
+
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -133,7 +134,13 @@ async def analyze_kakao(
     mbti_result = score_mbti(all_features)
     confidence = compute_confidence(all_features, source_count=len(files))
     label = generate_label_with_llm(mbti_result, confidence)  # ★ 수식어 생성
+        # ★ MBTI 페르소나 개요 생성
+    persona_overview = generate_persona_overview(mbti_result)
+
     report = generate_report(mbti_result, confidence)
+
+    # ★ mbti_result 딕셔너리에 바로 붙여서 프론트로 넘김
+    mbti_result["persona_overview"] = persona_overview
 
     return {
         "mbti": mbti_result,

@@ -265,6 +265,30 @@ def extract_kakao_features(parsed: Dict[str, Any]) -> Dict[str, Any]:
     top_words = _top_n(word_freq, 10)
     top_emojis = _top_n(emoji_freq, 5)
 
+    # === 내가 자주 쓰는 말 예시 (이모티콘/플레이스홀더 제외) ===
+    common_samples: List[str] = []
+    MAX_SAMPLES = 5
+
+    for w in top_words:
+        if len(common_samples) >= MAX_SAMPLES:
+            break
+        for m in user_msgs:
+            t = m["text"] or ""
+
+            # 🔥 Kakao 내보내기에서 이모티콘은 "이모티콘" 같은 텍스트로 들어오므로 걸러준다
+            if "이모티콘" in t:
+                continue
+
+            # (옵션) 너무 짧은 건 제외하고 싶으면 유지, 아니라면 지워도 됨
+            if len(t.strip()) < 2:
+                continue
+
+            if w in t and t not in common_samples:
+                common_samples.append(t)
+                if len(common_samples) >= MAX_SAMPLES:
+                    break
+
+
     # 평균 답장 시간 (other -> user)
     reply_deltas: List[float] = []
     if user_msg_count > 0 and other_msgs:
@@ -331,6 +355,7 @@ def extract_kakao_features(parsed: Dict[str, Any]) -> Dict[str, Any]:
         "user_top_emojis": top_emojis,
         "sample_night_messages": night_samples,
         "sample_game_messages": game_samples,
+        "sample_common_messages": common_samples,
     }
     
     # 주제 비율 추가
