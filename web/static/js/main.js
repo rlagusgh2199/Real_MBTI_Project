@@ -615,7 +615,7 @@ async function analyze() {
 
   const formData = buildFormData(userName, files);
 
-  try {
+try {
     const data = await requestAnalyzeKakao(formData);
 
     setStatus(
@@ -624,16 +624,26 @@ async function analyze() {
       "success"
     );
 
+    // ✅ 분석 결과 섹션 표시
+    const resultsSection = document.getElementById("results-section");
+    if (resultsSection) {
+      resultsSection.removeAttribute("hidden");
+      // 선택: 자동 스크롤
+      // resultsSection.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+
     updateUIWithAnalysis(data);
     openAccordion("overview");
+
   } catch (err) {
-    console.error(err);
-    setStatus(
-      DOM.statusEl,
-      `분석 중 오류가 발생했습니다: ${err.message}`,
-      "error"
-    );
+      console.error(err);
+      setStatus(
+        DOM.statusEl,
+        `분석 중 오류가 발생했습니다: ${err.message}`,
+        "error"
+      );
   }
+
 }
 
 

@@ -36,7 +36,7 @@ html,
 body {
   margin: 0;
   padding: 0;
-  height: 100%;
+  min-height: 100%;
 }
 
 body.app-body {
@@ -94,7 +94,6 @@ body.app-body {
   font-size: 0.92rem;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: #e5e7eb;
   font-weight: 600;
 }
 
@@ -118,7 +117,35 @@ body.app-body {
   color: var(--text-sub);
 }
 
+.brand-gradient-text {
+  background-image: linear-gradient(
+    90deg,
+    #4f46e5,
+    #6366f1,
+    #ec4899,
+    #f97316,
+    #22c55e
+  );
+  background-size: 100%;
+  background-repeat: repeat;
+
+  -webkit-background-clip: text;
+  background-clip: text;
+
+  color: transparent !important;
+  -webkit-text-fill-color: transparent !important;
+}
+
+
+
 /* HERO */
+.hero-title {
+  margin: 0 0 8px;
+  font-size: 2.8rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  text-shadow: 0 3px 10px rgba(0, 0, 0, 0.38);
+}
 
 .hero {
   display: flex;
@@ -158,12 +185,6 @@ body.app-body {
   border-style: dashed;
 }
 
-.hero-title {
-  margin: 0 0 8px;
-  font-size: 2.4rem;
-  letter-spacing: -0.03em;
-}
-
 .hero-subtitle {
   margin: 0 0 16px;
   font-size: 0.95rem;
@@ -187,25 +208,33 @@ body.app-body {
 .hero-steps li {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 0.78rem;         /* 살짝 줄여서 더 잘 들어가게 */
+  gap: 8px;
   padding: 6px 10px;
   border-radius: 999px;
   background: rgba(15, 23, 42, 0.7);
-  border: 1px solid rgba(148, 163, 184, 0.3);
-  white-space: nowrap;         /* 🔹 데스크탑 기준 한 줄 유지 */
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  font-size: 0.78rem;
 }
 
-.hero-steps li span:first-child {
-  width: 18px;
-  height: 18px;
+/* 숫자 동그라미 */
+.step-index {
+  flex: 0 0 20px;
+  width: 20px;
+  height: 20px;
   border-radius: 999px;
-  background: rgba(99, 102, 241, 0.1);
-  border: 1px solid rgba(99, 102, 241, 0.6);
+  background: radial-gradient(circle at 30% 20%, #4f46e5, #0ea5e9 60%, #22c55e 100%);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.72rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #e5e7eb;
+}
+
+/* 텍스트 */
+.step-label {
+  flex: 1;
+  white-space: nowrap; /* 데스크탑에서 한 줄 유지 */
 }
 
 
@@ -240,30 +269,28 @@ body.app-body {
   color: var(--text-sub);
 }
 
-/* 프로젝트 소개 3칸 요약 */
+.hero-title.brand-gradient-text {
+  display: inline-block;  /* ★ gradient clipping 활성화 핵심 */
+  background-image: linear-gradient(
+    120deg,
+    #4f46e5 0%,
+    #6366f1 20%,
+    #ec4899 40%,
+    #f97316 60%,
+    #22c55e 80%
+  ) !important;
+  background-size: 200%;
+  background-repeat: no-repeat;
 
-.hero-intro-grid {
-  margin-top: 18px;
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
+
+  color: transparent !important;
+  -webkit-text-fill-color: transparent !important;
 }
 
-.hero-intro-item {
-  padding: 10px 12px;
-  border-radius: 18px;
-  background: rgba(15, 23, 42, 0.92);
-  border: 1px solid rgba(148, 163, 184, 0.35);
-  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.65);
-  font-size: 0.8rem;
-  color: var(--text-sub);
-}
 
-.hero-intro-item h3 {
-  margin: 0 0 4px;
-  font-size: 0.86rem;
-  color: var(--text-main);
-}
+
 
 /* MAIN CONTENT */
 
@@ -357,8 +384,9 @@ body.app-body {
 
 .text-input {
   margin-top: 4px;
-  padding: 9px 11px;
-  border-radius: 12px;
+  height: 62px;                /* 🔹 파일 업로드 박스와 비슷한 높이 */
+  padding: 0 16px;             /* 🔹 텍스트 세로 중앙 정렬 느낌 */
+  border-radius: 18px;         /* 🔹 아래 드롭존과 라운드 통일 */
   border: 1px solid rgba(148, 163, 184, 0.5);
   background: rgba(15, 23, 42, 0.96);
   color: var(--text-main);
@@ -479,19 +507,20 @@ body.app-body {
 
 .btn-primary {
   padding: 9px 18px;
-  border-radius: var(--radius-pill);
+  border-radius: 999px;
   border: none;
   font-size: 0.9rem;
   font-weight: 500;
   cursor: pointer;
-  background: linear-gradient(90deg, #4f46e5, #22c55e);
+  background: #4f46e5;  /* 🔥 브랜드 단일 톤 */
   color: white;
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.7);
-  white-space: nowrap;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.5);
+  transition: 0.15s ease;
 }
 
 .btn-primary:hover {
-  filter: brightness(1.03);
+  background: #4338ca; /* 한 톤 다운된 hover */
+  box-shadow: 0 12px 26px rgba(15, 23, 42, 0.6);
 }
 
 /* 결과 카드 내부 레이아웃 */
@@ -960,4 +989,5 @@ body.app-body {
     flex-basis: 100%;
     margin-left: 24px;
   }
+
 }

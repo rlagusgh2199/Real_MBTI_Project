@@ -14,7 +14,7 @@
       <div class="nav-left">
         <div class="nav-logo">
           <span class="nav-dot"></span>
-          <span class="nav-logo-text">REAL MBTI</span>
+          <span class="nav-logo-text brand-gradient-text">REAL MBTI</span>
         </div>
         <span class="nav-tagline">KakaoTalk chat based MBTI profiling</span>
       </div>
@@ -31,19 +31,30 @@
           <span class="hero-badge hero-badge-sub">KAKAO TALK EXPORT(.TXT)</span>
         </div>
 
-        <h1 class="hero-title">Real MBTI</h1>
+        <h1 class="hero-title">
+          <span class="brand-gradient-text">Real MBTI</span>
+        </h1>
 
-        <!-- 🔹 설명 3줄 → 한 줄로 정리 -->
+        <!-- 설명 -->
         <p class="hero-subtitle">
           Real_MBTI는 설문이 아닌 실제 카카오톡 대화 기반 행동 데이터를 분석하여,
           내 MBTI 성향과 대화 습관을 파악해주는 웹 서비스입니다.
         </p>
 
-        <!-- 🔹 사용 단계: 짧고 한 줄씩 나오도록 텍스트 정리 -->
+        <!-- 사용 단계 -->
         <ul class="hero-steps">
-          <li><span>①</span> 내 카카오톡 이름(닉네임) 입력</li>
-          <li><span>②</span> 카카오톡 대화 내보내기(.txt) 파일 업로드</li>
-          <li><span>③</span> 분석 시작 버튼 클릭 후 결과 확인</li>
+          <li>
+            <span class="step-index">1</span>
+            <span class="step-label">내 카카오톡 이름(닉네임) 입력</span>
+          </li>
+          <li>
+            <span class="step-index">2</span>
+            <span class="step-label">카카오톡 대화 내보내기(.txt) 파일 업로드</span>
+          </li>
+          <li>
+            <span class="step-index">3</span>
+            <span class="step-label">분석 시작 버튼 클릭 후 결과 확인</span>
+          </li>
         </ul>
       </div>
     </header>
@@ -89,7 +100,7 @@
               id="userName"
               type="text"
               class="text-input"
-              placeholder="예) 김현호"
+              placeholder="예) 홍길동"
               autocomplete="off"
             />
           </div>
@@ -131,13 +142,10 @@
         </div>
       </section>
 
-      <!-- 결과 카드 -->
-      <section class="card card-results">
+      <!-- 결과 카드: 처음엔 숨김 -->
+      <section id="results-section" class="card card-results" hidden>
         <header class="card-header">
           <h2 class="card-title">2. 분석 결과</h2>
-          <p class="card-subtitle">
-            분석이 완료되면 아래 섹션들이 자동으로 채워집니다. 각 섹션은 아코디언 형태로 접어서 볼 수 있습니다.
-          </p>
         </header>
 
         <!-- 아코디언 전체 래퍼 -->
